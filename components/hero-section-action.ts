@@ -1,9 +1,9 @@
 'use server'
 import { redirect } from 'next/navigation'
 
-const BOT_API_URL = "https://loi.morched.tn/api/v1";
-const BOT_URL = "https://loi.morched.tn";
-const WORKSPACE = "loi";
+const BOT_API_URL = "https://lgpt.eur.tn/api/v1";
+const BOT_URL = "https://lgpt.eur.tn";
+const WORKSPACE = "germany-write-in-german";
 const PAYPAL_BASE =
   process.env.PAYPAL_ENV === "live"
     ? "https://api-m.paypal.com"
