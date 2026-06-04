@@ -4,7 +4,7 @@ import { ArrowRight, Zap } from "lucide-react"
 import { ParticleTextEffect } from "./particle-text-effect"
 import { InfiniteSlider } from "./ui/infinite-slider"
 import { ProgressiveBlur } from "./ui/progressive-blur"
-import { handleFreeStart, handlePaypalStart } from "./hero-section-action"
+import { handleFreeStart, handleFlouciStart } from "./hero-section-action"
 
 export function HeroSection() {
   return (
@@ -31,6 +31,7 @@ export function HeroSection() {
           </div>
 
           <div className="flex flex-col sm:flex-row items-center justify-center gap-3 mt-2">
+            {/* Free tier */}
             <form action={handleFreeStart}>
               <button
                 type="submit"
@@ -47,7 +48,8 @@ export function HeroSection() {
               </button>
             </form>
 
-            <form action={handlePaypalStart}>
+            {/* Paid tier — Flouci */}
+            <form action={handleFlouciStart}>
               <button
                 type="submit"
                 className="inline-flex items-center gap-3 px-7 py-2.5 rounded-full font-bold text-base transition-all duration-150 hover:scale-105 active:scale-95"
@@ -58,7 +60,7 @@ export function HeroSection() {
                 }}
               >
                 <Zap className="w-4 h-4 fill-current" />
-                <span>20 € / Monat per PayPal abonnieren</span>
+                <span>20 TND / Monat per Flouci abonnieren</span>
               </button>
             </form>
           </div>
@@ -69,7 +71,6 @@ export function HeroSection() {
 
           <div className="mt-16 mb-8">
             <div className="group relative m-auto max-w-6xl">
-              
             </div>
           </div>
         </div>
