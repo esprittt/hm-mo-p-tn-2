@@ -1,15 +1,16 @@
 "use client"
- 
+
 import { useState, useRef } from "react"
 import { motion, AnimatePresence } from "framer-motion"
 import { Button } from "./ui/button"
 import { Check } from "lucide-react"
 import { Phone } from "lucide-react"
+import { handleFlouciStart } from "./hero-section-action"
 
 const pricingPlans = [
   {
     name: "Studententarif",
-    price: "20 €",
+    price: "20 TND",
     description: "Die ideale Wahl für Studierende, die Geschwindigkeit, Genauigkeit und Zeitersparnis suchen.",
     features: [
       "Abonnementdauer: 7 Monate + 5 Monate gratis",
@@ -19,7 +20,7 @@ const pricingPlans = [
   },
   {
     name: "Fortgeschrittener Tarif",
-    price: "40 €",
+    price: "40 TND",
     description: "Für fortgeschrittene Studierende und Profis: höhere Genauigkeit – mehr Inhalt – schnellerer Support.",
     features: [
       "Abonnementdauer: 7 Monate + 5 Monate gratis",
@@ -46,29 +47,26 @@ const pricingPlans = [
     enterprise: true,
   },
 ]
- 
+
 export function PricingSection() {
   const [showPaymentInfo, setShowPaymentInfo] = useState(true)
   const [glow, setGlow] = useState(false)
- 
   const paymentSectionRef = useRef<HTMLDivElement | null>(null)
- 
+
   const handleSubscribeClick = (plan: typeof pricingPlans[number]) => {
     if (plan.enterprise) {
       window.location.href = "tel:+491601234567"
       return
     }
- 
+
     setShowPaymentInfo(true)
- 
     setTimeout(() => {
       paymentSectionRef.current?.scrollIntoView({ behavior: "smooth" })
- 
       setGlow(true)
       setTimeout(() => setGlow(false), 1800)
     }, 200)
   }
- 
+
   return (
     <section
       id="pricing"
@@ -80,13 +78,13 @@ export function PricingSection() {
       >
         <Phone className="w-7 h-7" />
       </a>
- 
+
       <div className="text-center text-2xl md:text-3xl font-extrabold mb-12 leading-relaxed">
         Die Kraft des Rechts… mit einer KI, die dich versteht, unterstützt und dir stundenlange Arbeit erspart.
         <br /> Weil deine Zukunft die besten Werkzeuge und schnellsten Lösungen verdient.
         <br /> Darum haben wir Euro Legal GPT für dich entwickelt.
       </div>
- 
+
       <div className="container mx-auto">
         <div className="grid grid-cols-1 md:grid-cols-3 gap-10 max-w-7xl mx-auto">
           {pricingPlans.map((plan, index) => (
@@ -105,13 +103,10 @@ export function PricingSection() {
                   Am beliebtesten
                 </div>
               )}
- 
               <div className="flex-1">
                 <h3 className="text-3xl font-bold mb-3">{plan.name}</h3>
                 <div className="text-4xl font-extrabold mb-4">{plan.price}</div>
- 
                 <p className="opacity-80 mb-6 leading-relaxed">{plan.description}</p>
- 
                 <ul className="space-y-3 mb-8">
                   {plan.features.map((f, i) => (
                     <li key={i} className="flex items-center gap-2 opacity-90">
@@ -120,18 +115,30 @@ export function PricingSection() {
                   ))}
                 </ul>
               </div>
- 
-              <Button
-                className="mt-auto w-full bg-white text-red-700 font-extrabold py-3 rounded-xl hover:bg-red-100"
-                onClick={() => handleSubscribeClick(plan)}
-              >
-                {plan.enterprise ? "Jetzt anrufen" : "Jetzt abonnieren"}
-              </Button>
+
+              {plan.enterprise ? (
+                <Button
+                  className="mt-auto w-full bg-white text-red-700 font-extrabold py-3 rounded-xl hover:bg-red-100"
+                  onClick={() => handleSubscribeClick(plan)}
+                >
+                  Jetzt anrufen
+                </Button>
+              ) : (
+                /* Flouci payment button — server action via form */
+                <form action={handleFlouciStart}>
+                  <Button
+                    type="submit"
+                    className="mt-auto w-full bg-white text-red-700 font-extrabold py-3 rounded-xl hover:bg-red-100"
+                  >
+                    Jetzt abonnieren
+                  </Button>
+                </form>
+              )}
             </motion.div>
           ))}
         </div>
       </div>
- 
+
       <AnimatePresence>
         {showPaymentInfo && (
           <motion.div
@@ -139,39 +146,28 @@ export function PricingSection() {
             initial={{ opacity: 0, y: 40 }}
             animate={{ opacity: 1, y: 0 }}
             className={`
-              mt-16 max-w-3xl mx-auto transition 
+              mt-16 max-w-3xl mx-auto transition
               ${glow ? "ring-4 ring-red-400 ring-opacity-60" : ""}
             `}
           >
             <div className="space-y-6">
-
- 
               <div className="relative rounded-2xl border border-red-500/40 bg-red-500/10 px-6 py-6 text-center overflow-hidden">
                 <div className="absolute inset-0 bg-red-500/20 blur-2xl opacity-40 pointer-events-none" />
                 <div className="relative space-y-3">
-                                    <p className="text-lg font-semibold text-white mb-2">
-                    Banküberweisung (RIB)
-                  </p>
-                  <p className="text-sm sm:text-base font-mono font-bold text-white break-all">
-                    25 072 000 000 1310382 37
-                  </p>
-                  <p className="text-lg font-bold text-white">
-                    Zahlungsbestätigung
+                  <p className="text-lg font-semibold text-white mb-2">
+                    Online-Zahlung per Flouci
                   </p>
                   <p className="text-sm text-gray-200 leading-relaxed">
-                    Nach der Zahlung sende bitte den Zahlungsbeleg per WhatsApp oder E-Mail zur Bestätigung.
+                    Klicke auf „Jetzt abonnieren" – du wirst sicher zur Flouci-Zahlungsseite weitergeleitet.
+                    Nach erfolgreicher Zahlung erhältst du sofort Zugang zur Plattform.
+                  </p>
+                  <p className="text-xs text-gray-300 mt-2 leading-relaxed">
+                    Bei Fragen kontaktiere uns per WhatsApp oder E-Mail.
                   </p>
                   <div className="space-y-1 text-sm">
-                    <p className="text-white font-medium">
-                      📱 WhatsApp: +49 160 1234567
-                    </p>
-                    <p className="text-white font-medium">
-                      ✉️ Email: contact@euro-Legal GPT.de
-                    </p>
+                    <p className="text-white font-medium">📱 WhatsApp: +49 160 1234567</p>
+                    <p className="text-white font-medium">✉️ Email: contact@euro-Legal GPT.de</p>
                   </div>
-                  <p className="text-xs text-gray-300 mt-2 leading-relaxed">
-                    Nach der Überprüfung sendet das Admin-Team deinen Benutzernamen und den Link zur Euro Legal GPT Plattform per SMS.
-                  </p>
                 </div>
               </div>
             </div>
