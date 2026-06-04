@@ -1,38 +1,19 @@
 'use server'
+
 import { redirect } from 'next/navigation'
 
 const BOT_API_URL = "https://lgpt.eur.tn/api/v1";
 const BOT_URL = "https://lgpt.eur.tn";
 const WORKSPACE = "germany-write-in-german";
-const PAYPAL_BASE =
-  process.env.PAYPAL_ENV === "live"
-    ? "https://api-m.paypal.com"
-    : "https://api-m.sandbox.paypal.com";
+const FLOUCI_BASE = "https://developers.flouci.com/api/v2";
 
 function shortId() {
-  // 8 random alphanumeric chars — total username will be "f_xxxxxxxx" or "p_xxxxxxxx" = 10 chars
+  // 8 random alphanumeric chars — total username will be "f_xxxxxxxx" = 10 chars
   return Math.random().toString(36).slice(2, 10);
 }
 
-async function getPaypalAccessToken(): Promise<string> {
-  const creds = Buffer.from(
-    `${process.env.PAYPAL_CLIENT_ID}:${process.env.PAYPAL_CLIENT_SECRET}`
-  ).toString("base64");
-  const res = await fetch(`${PAYPAL_BASE}/v1/oauth2/token`, {
-    method: "POST",
-    headers: {
-      Authorization: `Basic ${creds}`,
-      "Content-Type": "application/x-www-form-urlencoded",
-    },
-    body: "grant_type=client_credentials",
-    cache: "no-store",
-  });
-  const data = await res.json();
-  if (!data.access_token) throw new Error(`PayPal auth failed: ${JSON.stringify(data)}`);
-  return data.access_token;
-}
-
 // ─── FREE USER (10-message limit) ────────────────────────────────────────────
+
 export async function handleFreeStart() {
   const API_KEY = process.env.BOTAPI;
   const username = `f_${shortId()}`; // e.g. "f_k3m9za1p" = 10 chars
@@ -46,6 +27,7 @@ export async function handleFreeStart() {
       },
       body: JSON.stringify({ username, password: "TempPassword123!", role: "default" })
     });
+
     const userData = await userRes.json();
     const userId = userData.user?.id;
     if (!userId) throw new Error(`User creation failed: ${JSON.stringify(userData)}`);
@@ -66,7 +48,6 @@ export async function handleFreeStart() {
 
     const { token } = await tokenRes.json();
     redirect(`${BOT_URL}/sso/simple?token=${token}&redirectTo=/workspace/${WORKSPACE}`);
-
   } catch (error: any) {
     if (error.message === "NEXT_REDIRECT") throw error;
     console.error("Free SSO flow failed:", error);
@@ -74,45 +55,42 @@ export async function handleFreeStart() {
   }
 }
 
-// ─── PAID USER ───────────────────────────────────────────────────────────────
-export async function handlePaypalStart() {
+// ─── PAID USER (Flouci) ───────────────────────────────────────────────────────
+
+export async function handleFlouciStart() {
   const shopUrl = process.env.NEXT_PUBLIC_BASE_URL!;
 
   try {
-    const accessToken = await getPaypalAccessToken();
-    const res = await fetch(`${PAYPAL_BASE}/v2/checkout/orders`, {
+    const res = await fetch(`${FLOUCI_BASE}/generate_payment`, {
       method: "POST",
       headers: {
-        Authorization: `Bearer ${accessToken}`,
+        Authorization: `Bearer ${process.env.FLOUCI_PUBLIC_KEY}:${process.env.FLOUCI_SECRET_KEY}`,
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        intent: "CAPTURE",
-        purchase_units: [
-          {
-            amount: { currency_code: "USD", value: "20.00" },
-            description: "Euro Legal GPT - monatliches Abo",
-          },
-        ],
-        application_context: {
-          brand_name: "Euro Legal GPT",
-          locale: "de-DE",
-          return_url: `${shopUrl}/api/paypal/capture`,
-          cancel_url: `${shopUrl}/?paypal=cancelled`,
-          user_action: "PAY_NOW",
-        },
+        // Flouci amounts are in millimes (1 TND = 1000 millimes)
+        // Adjust this value to your actual price in millimes
+        amount: "20000",                        // e.g. 20 TND = 20000 millimes
+        accept_card: true,
+        success_link: `${shopUrl}/api/flouci/verify`,
+        fail_link: `${shopUrl}/?flouci=cancelled`,
+        developer_tracking_id: `order_${shortId()}`,
+        // Optional: shown on the Flouci payment page
+        // client_id: "Euro Legal GPT",
       }),
       cache: "no-store",
     });
 
-    const order = await res.json();
-    const approveLink = order.links?.find((l: any) => l.rel === "approve")?.href;
-    if (!approveLink) throw new Error(`No approve link. PayPal response: ${JSON.stringify(order)}`);
-    redirect(approveLink);
+    const data = await res.json();
 
+    if (!data.result?.success || !data.result?.link) {
+      throw new Error(`Flouci generate_payment failed: ${JSON.stringify(data)}`);
+    }
+
+    redirect(data.result.link);
   } catch (error: any) {
     if (error.message === "NEXT_REDIRECT") throw error;
-    console.error("PayPal redirect failed:", error);
+    console.error("Flouci redirect failed:", error);
     redirect(BOT_URL);
   }
 }
