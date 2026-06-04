@@ -9,28 +9,45 @@ const SHOP_URL = process.env.NEXT_PUBLIC_BASE_URL!;
 /**
  * GET /api/flouci/verify?payment_id=xxx
  *
- * Flouci redirects to:
- *   success_link?payment_id=<PAYMENT_ID>   on success
- *   fail_link?payment_id=<PAYMENT_ID>      on failure
+ * Flouci appends ?payment_id=<ID> to BOTH success_link and fail_link.
+ * We ALWAYS verify the real status via the API — never trust the redirect path.
  *
- * We verify the payment with Flouci, then provision the bot user exactly
- * like the old PayPal capture route did.
+ * Flouci verify_payment response shape (from docs):
+ * {
+ *   "success": true,          ← top-level boolean
+ *   "result": {
+ *     "type": "wallet",
+ *     "amount": 1250,
+ *     "status": "SUCCESS",    ← "SUCCESS" | "PENDING" | "EXPIRED" | "FAILURE"
+ *     "details": { ... },
+ *     "developer_tracking_id": "..."
+ *   },
+ *   "status_code": 200,
+ *   "name": "developers",
+ *   "code": 0,
+ *   "version": "2.0.0"
+ * }
+ *
+ * A payment is confirmed only when BOTH:
+ *   verifyData.success === true  AND  verifyData.result.status === "SUCCESS"
  */
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
   const paymentId = searchParams.get("payment_id");
 
   if (!paymentId) {
+    console.error("Flouci verify: no payment_id in query string");
     return NextResponse.redirect(`${SHOP_URL}/?flouci=error`);
   }
 
   try {
-    // 1. Verify payment with Flouci
+    // 1. Verify real payment status from Flouci
     const verifyRes = await fetch(
       `${FLOUCI_BASE}/verify_payment/${paymentId}`,
       {
         method: "GET",
         headers: {
+          // Docs: Bearer <APP_PUBLIC>:<APP_SECRET>
           Authorization: `Bearer ${process.env.FLOUCI_PUBLIC_KEY}:${process.env.FLOUCI_SECRET_KEY}`,
         },
         cache: "no-store",
@@ -38,17 +55,29 @@ export async function GET(req: NextRequest) {
     );
 
     const verifyData = await verifyRes.json();
+    console.log(`Flouci verify [${paymentId}]:`, JSON.stringify(verifyData));
 
-    // Must have success:true AND status:"SUCCESS"
-    if (!verifyData.success || verifyData.result?.status !== "SUCCESS") {
-      console.error("Flouci verify failed:", verifyData);
+    // Docs: check top-level "success" FIRST, then "result.status"
+    if (verifyData.success !== true) {
+      console.warn("Flouci verify: success=false", verifyData);
       return NextResponse.redirect(`${SHOP_URL}/?flouci=failed`);
     }
 
-    // 2. Build username — strictly max 15 chars: "p" + 8 random alphanumeric
-    const rand = Math.random().toString(36).slice(2, 10); // 8 chars
-    const username = `p${rand}`; // 9 chars total, always unique
+    const status = verifyData.result?.status;
 
+    if (status !== "SUCCESS") {
+      console.warn(`Flouci verify: status=${status}`);
+      // PENDING / EXPIRED → treat as cancelled (user backed out or timed out)
+      // FAILURE → hard payment failure
+      if (status === "FAILURE") {
+        return NextResponse.redirect(`${SHOP_URL}/?flouci=failed`);
+      }
+      return NextResponse.redirect(`${SHOP_URL}/?flouci=cancelled`);
+    }
+
+    // 2. Payment confirmed — provision bot user
+    const rand = Math.random().toString(36).slice(2, 10);
+    const username = `p${rand}`; // 9 chars, well under 15 char limit
     const API_KEY = process.env.BOTAPI;
 
     const userRes = await fetch(`${BOT_API_URL}/admin/users/new`, {
@@ -68,7 +97,7 @@ export async function GET(req: NextRequest) {
     const userId = userData.user?.id;
 
     if (!userId) {
-      console.error("User creation failed:", userData);
+      console.error("Bot user creation failed:", userData);
       return NextResponse.redirect(`${SHOP_URL}/?flouci=usererror`);
     }
 
@@ -100,7 +129,7 @@ export async function GET(req: NextRequest) {
       `${BOT_URL}/sso/simple?token=${ssoToken}&redirectTo=/workspace/${WORKSPACE}`
     );
   } catch (err) {
-    console.error("Flouci verify error:", err);
+    console.error("Flouci verify route error:", err);
     return NextResponse.redirect(`${SHOP_URL}/?flouci=error`);
   }
 }
